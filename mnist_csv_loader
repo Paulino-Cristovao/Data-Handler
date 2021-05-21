@@ -1,0 +1,91 @@
+##### MNIST in CSV format
+
+import pandas as pd
+import numpy as np
+import torch
+import torchvision
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim 
+from torchvision.transforms import transforms
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+import PIL
+import cv2
+
+batch_size_train = 100
+batch_size_test = 100
+batch_size_novel = 100
+
+
+
+
+ 
+# define transforms
+affine_transform = torchvision.transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.8, 1.2))
+
+transform = transforms.Compose([
+                    #transforms.Lambda(gaussian_blur),
+                    transforms.ToPILImage(),
+                    transforms.RandomApply([affine_transform], p=0.5),
+                    transforms.RandomRotation(20),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,)),
+                ])
+
+transform_test = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,)),
+                ])
+
+# custom dataset
+class Data(Dataset):
+    def __init__(self, data, labels=None, transforms=None):
+        self.images = data
+        self.labels = labels
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+        image0 = self.images.iloc[index]
+        image0 = np.asarray(image0).astype('uint8').reshape((28, 28, 1))
+        label0 = self.labels.iloc[index]
+
+       
+        if self.labels is not None:
+            return self.transforms(image0), label0
+  
+# dataloaders
+def load_torch_data(k_shot, base_class):
+    # mnist
+    df_train_mnist = pd.read_csv('/data/train.csv')
+    #df_train_mnist = df_train_mnist.iloc[np.random.permutation(len(df_train_mnist))]
+
+    #Split data into train and test
+    limit = 50000
+    train_mnist = df_train_mnist[:limit]# train
+    test_mnist = df_train_mnist[limit:]# Test
+
+   
+    # [data and label]
+    X_train = train_mnist.iloc[:,:-1]
+    y_train = train_mnist.iloc[:,-1] 
+    
+    # Test - data and label
+    X_test = test_mnist.iloc[:,:-1]
+    y_test = test_mnist.iloc[:,-1] 
+    
+    train_data = Data(X_train, y_train, transform, novel=False)
+    test_data = Data(X_test, y_test, transform, novel=False)
+    
+    # train and validation [DataLoader]
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size_train, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size_test, shuffle=False)
+    
+
+    return train_loader, test_loader
+
+
